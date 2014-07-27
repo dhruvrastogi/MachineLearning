@@ -5,7 +5,7 @@ date: "Sunday, July 27, 2014"
 output: html_document
 ---
 
-This is a course project worked towards the 'Practical Machine Learning' MOOC on Coursera. The course has been organized by Dr. Jeff Leek from the John Hopkins Bloomberg School of Health. 
+This is a course project worked towards the 'Practical Machine Learning' MOOC on Coursera.  
 
 The goal of this project is to predict the manner in which people exercise, focussing not on 'how much of a particular activity they do' but how well they do it. To statistically access this, data has been used from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. It has been downloaded from https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv and https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv. 
 
@@ -26,6 +26,7 @@ library('rpart.plot')
 
 Reading the training data file
 ```{r}
+getwd()
 allData <- read.csv('pml-training.csv',header=T)
 ```
 The raw data contains a total 19622 observations and 159 predictor variables
@@ -60,21 +61,23 @@ The training and testing data set contain 14718 and 4904 observations respective
 - Removing unexplanatory variables
 - Dropping one in each pair of correlated predictors. This ensures that collinear variables are not included in the analysis hurting the bias variance tradeoff.
 ```{r}
-nzv <- nearZeroVar(training,saveMetrics=TRUE)
-nzvIndices <- which(nzv$nzv==TRUE)
-training <- training[,-nzvIndices]
-testing <- testing[,-nzvIndices]
-
 training <- training[,-seq(5)]
 testing <- testing[,-seq(5)]
 
-M <- abs(cor(training[,-ncol(training)]))>0.8
+nzv <- nearZeroVar(training[,-ncol(training)],saveMetrics=TRUE)
+nzvIndices <- which(nzv$percentUnique<10)
+training <- training[,-nzvIndices]
+testing <- testing[,-nzvIndices]
+dim(training)
+
+M <- abs(cor(training[,-ncol(training)]))>0.7
 diag(M) <- 0
-corColumns <- which(M>0.8,arr.ind=T)
+corColumns <- which(M>0.7,arr.ind=T)
 training <- training[,-seq(1,nrow(corColumns),2)]
 testing <- testing[,-seq(1,nrow(corColumns),2)]
+dim(training)
 ```
-At the end of the feature selection step and before the model building step, the training data contains a total of 35 covariates
+At the end of the feature selection step and before the model building step, the training data contains a total of 14covariates
 
 
 **Model Fitting on the training data**
@@ -93,8 +96,7 @@ confusionMatrix(predictions,training$classe)
 
 **Relationship of covariates in training data with 'classe'**
 ```{r fig.width=5, fig.height=5,message=FALSE}
-qplot(roll_belt, pitch_forearm,colour=classe,data=training)
-qplot(magnet_dumbbell_y, roll_forearm,colour=classe,data=training)
+qplot(yaw_belt, pitch_forearm,colour=classe,data=training)
 ```
 
 
@@ -105,7 +107,7 @@ predictions <- predict(modelFit,newdata=testing[,-ncol(testing)])
 table(predictions,testing$classe)
 confusionMatrix(predictions,testing$classe)
 ```
-The out of sample accuracy is the best for A (90%) and is expected to be nearly 50% averaged across all the five classes
+**The in sample accuracy is the best for A (90%) and is nearly 50% averaged across all the five classes. The accuracy numbers from the out of sample error as checked in the testing data are in line with the training data set (~50%) 
 
 
 Plotting the classification tree
