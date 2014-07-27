@@ -1,0 +1,1 @@
+This contains the R markdown file and the compiled HTML file for coursera - practical machine learning - course project

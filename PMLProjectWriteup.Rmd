@@ -1,0 +1,127 @@
+---
+title: "Coursera-Practical Machine Learning-Course Project:Writeup"
+author: "Dhruv"
+date: "Sunday, July 27, 2014"
+output: html_document
+---
+
+This is a course project worked towards the 'Practical Machine Learning' MOOC on Coursera. The course has been organized by Dr. Jeff Leek from the John Hopkins Bloomberg School of Health. 
+
+The goal of this project is to predict the manner in which people exercise, focussing not on 'how much of a particular activity they do' but how well they do it. To statistically access this, data has been used from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. It has been downloaded from https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv and https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv. 
+
+The "classe" variable is the output metric and the other variables are used to predict it. The report below describes how the model was built, how cross validation was used and comments on the out of sample error. The choices and steps performed at every stage have also been explained. 
+
+
+
+Loading the required libraries
+```{r}
+library('caret')
+library('e1071')
+library('MASS')
+library('ggplot2')
+library('rpart')
+library('rattle')
+library('rpart.plot')
+```
+
+Reading the training data file
+```{r}
+allData <- read.csv('pml-training.csv',header=T)
+```
+The raw data contains a total 19622 observations and 159 predictor variables
+
+
+Filtering
+- Assign all blank fields to NA
+- Remove all predictors where observations are not available
+```{r}
+allData[allData==""] <- NA
+naData <- apply(allData,2,function(x) anyNA(x))
+naDataIndices <- which(naData==TRUE)
+allDataCleaned <- allData[,-naDataIndices]
+```
+100 predictor variables are dropped due to missing data
+
+
+Partitioning the data into training and testing data
+75% of the data set is used for training and 25% for testing
+pml-testing.csv is used as validation data.
+```{r}
+insampleIndices <- createDataPartition(y=allDataCleaned$classe,p=0.75,list=FALSE)
+training <- allDataCleaned[insampleIndices,]
+testing <- allDataCleaned[-insampleIndices,]
+```
+The training and testing data set contain 14718 and 4904 observations respectively
+
+
+
+**Feature Selection**
+- Removing zero covariates
+- Removing unexplanatory variables
+- Dropping one in each pair of correlated predictors. This ensures that collinear variables are not included in the analysis hurting the bias variance tradeoff.
+```{r}
+nzv <- nearZeroVar(training,saveMetrics=TRUE)
+nzvIndices <- which(nzv$nzv==TRUE)
+training <- training[,-nzvIndices]
+testing <- testing[,-nzvIndices]
+
+training <- training[,-seq(5)]
+testing <- testing[,-seq(5)]
+
+M <- abs(cor(training[,-ncol(training)]))>0.8
+diag(M) <- 0
+corColumns <- which(M>0.8,arr.ind=T)
+training <- training[,-seq(1,nrow(corColumns),2)]
+testing <- testing[,-seq(1,nrow(corColumns),2)]
+```
+At the end of the feature selection step and before the model building step, the training data contains a total of 35 covariates
+
+
+**Model Fitting on the training data**
+Classification trees are used for this exercise because of the following reasons
+- They work well with categorical data
+- The covariates are non-linear and trees give better performance in such cases
+- They are easy to interpret and understand
+```{r}
+modelFit <- train(classe~.,data=training,method="rpart")
+modelFit$finalModel
+predictions <- predict(modelFit,newdata=training[,-ncol(testing)])
+table(predictions,training$classe)
+confusionMatrix(predictions,training$classe)
+```
+
+
+**Relationship of covariates in training data with 'classe'**
+```{r fig.width=5, fig.height=5,message=FALSE}
+qplot(roll_belt, pitch_forearm,colour=classe,data=training)
+qplot(magnet_dumbbell_y, roll_forearm,colour=classe,data=training)
+```
+
+
+**Cross Validation**
+Checking the fitted model on the testing data
+```{r}
+predictions <- predict(modelFit,newdata=testing[,-ncol(testing)])
+table(predictions,testing$classe)
+confusionMatrix(predictions,testing$classe)
+```
+The out of sample accuracy is the best for A (90%) and is expected to be nearly 50% averaged across all the five classes
+
+
+Plotting the classification tree
+```{r fig.width=5, fig.height=5,message=FALSE}
+fancyRpartPlot(modelFit$finalModel)
+```
+```{r fig.width=7, fig.height=7,message=FALSE}
+plot(modelFit$finalModel, uniform=TRUE, main="Classification Tree")
+text(modelFit$finalModel, use.n=TRUE, all=TRUE, cex=0.8)
+```
+
+
+**Running the prediction on the validation data**
+```{r}
+testData <- read.csv('pml-testing.csv',header=T)
+predictions <- predict(modelFit,newdata=testData)
+print(predictions)
+```
+
